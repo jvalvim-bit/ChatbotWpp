@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fonseca & Macedo – Painel do Bot</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --gold: #B8964B;
+    --gold-light: #D4AF72;
+    --gold-pale: #F5EDD8;
+    --navy: #1A2340;
+    --navy-mid: #253058;
+    --navy-light: #2E3B6B;
+    --cream: #FAF8F3;
+    --text: #1A2340;
+    --text-muted: #6B7490;
+    --success: #2D7D5A;
+    --danger: #C0392B;
+    --warning: #D68910;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--cream);
+    color: var(--text);
+    min-height: 100vh;
+  }
+  header {
+    background: var(--navy);
+    padding: 0 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 64px;
+    border-bottom: 2px solid var(--gold);
+  }
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .logo-icon {
+    width: 36px; height: 36px;
+    background: var(--gold);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+  .logo h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 16px;
+    font-weight: 600;
+    color: #fff;
+    line-height: 1.2;
+  }
+  .logo small {
+    display: block;
+    font-size: 10px;
+    color: var(--gold-light);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 300;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+  }
+  #status-pill {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+    border: 1px solid rgba(255,255,255,0.2);
+    color: #fff;
+    transition: all 0.4s;
+  }
+  .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #888;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .online .dot { background: #2ecc71; }
+  .aguardando_qr .dot { background: var(--gold); }
+  .desconectado .dot { background: var(--danger); animation: none; }
+
+  main { padding: 2rem; max-width: 1200px; margin: 0 auto; }
+
+  .cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 16px;
+    margin-bottom: 2rem;
+  }
+  .stat-card {
+    background: #fff;
+    border: 1px solid #E8E2D4;
+    border-radius: 12px;
+    padding: 1.25rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: var(--gold);
+  }
+  .stat-card .label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+    font-weight: 500;
+  }
+  .stat-card .value {
+    font-size: 28px;
+    font-weight: 500;
+    color: var(--navy);
+    font-family: 'Playfair Display', serif;
+  }
+
+  .grid-two {
+    display: grid;
+    grid-template-columns: 1fr 1.8fr;
+    gap: 1.5rem;
+  }
+  @media(max-width: 768px) { .grid-two { grid-template-columns: 1fr; } }
+
+  .card {
+    background: #fff;
+    border: 1px solid #E8E2D4;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .card-header {
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid #E8E2D4;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--navy);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .card-body { padding: 1.25rem; }
+
+  #qr-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 280px;
+    gap: 1rem;
+  }
+  #qr-box img { width: 200px; height: 200px; border-radius: 8px; }
+  #qr-box p { font-size: 13px; color: var(--text-muted); text-align: center; max-width: 200px; line-height: 1.5; }
+  .online-icon {
+    font-size: 48px;
+    display: block;
+    text-align: center;
+    margin-bottom: 12px;
+  }
+  .status-online-msg {
+    text-align: center;
+    color: var(--success);
+    font-weight: 500;
+    font-size: 15px;
+  }
+  .status-online-sub {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 13px;
+    margin-top: 6px;
+  }
+
+  #logs-list {
+    max-height: 340px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--gold-pale) transparent;
+  }
+  .log-item {
+    display: grid;
+    grid-template-columns: auto auto 1fr;
+    gap: 10px;
+    align-items: start;
+    padding: 10px 0;
+    border-bottom: 1px solid #F0EAD8;
+    font-size: 13px;
+    animation: fadeIn 0.3s ease;
+  }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:none} }
+  .log-item:last-child { border-bottom: none; }
+  .log-hora { color: var(--text-muted); font-size: 11px; white-space: nowrap; margin-top: 2px; }
+  .log-badge {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .badge-recebido { background: #EAF5FF; color: #1565C0; }
+  .badge-enviado { background: #E8F5E9; color: #1B5E20; }
+  .log-numero { font-weight: 500; color: var(--navy); }
+  .log-msg { color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+
+  .send-section { margin-top: 1.5rem; }
+  .send-section label {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+  }
+  .send-section input, .send-section textarea {
+    width: 100%;
+    border: 1px solid #E8E2D4;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-family: inherit;
+    font-size: 14px;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.2s;
+    margin-bottom: 10px;
+    resize: none;
+  }
+  .send-section input:focus, .send-section textarea:focus {
+    border-color: var(--gold);
+  }
+  .btn-send {
+    background: var(--navy);
+    color: #fff;
+    border: none;
+    padding: 10px 24px;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s;
+    width: 100%;
+  }
+  .btn-send:hover { background: var(--navy-light); }
+  .btn-send:disabled { opacity: 0.5; cursor: not-allowed; }
+  #send-feedback {
+    font-size: 13px;
+    margin-top: 8px;
+    min-height: 18px;
+  }
+  .ok { color: var(--success); }
+  .err { color: var(--danger); }
+  footer {
+    text-align: center;
+    padding: 2rem;
+    font-size: 12px;
+    color: var(--text-muted);
+    border-top: 1px solid #E8E2D4;
+    margin-top: 2rem;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">⚖️</div>
+    <h1>Fonseca & Macedo Advogados<small>Painel do Chatbot WhatsApp</small></h1>
+  </div>
+  <div id="status-pill">
+    <div class="dot"></div>
+    <span id="status-txt">Conectando...</span>
+  </div>
+</header>
+
+<main>
+  <div class="cards-grid">
+    <div class="stat-card">
+      <div class="label">Mensagens recebidas</div>
+      <div class="value" id="s-recebidas">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Respostas enviadas</div>
+      <div class="value" id="s-enviadas">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Sessões ativas</div>
+      <div class="value" id="s-sessoes">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Uptime</div>
+      <div class="value" id="s-uptime">0min</div>
+    </div>
+  </div>
+
+  <div class="grid-two">
+    <div>
+      <div class="card" style="margin-bottom:1.5rem;">
+        <div class="card-header">Status da Conexão</div>
+        <div class="card-body">
+          <div id="qr-box">
+            <p style="color:var(--text-muted)">Aguardando inicialização...</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">Envio Manual</div>
+        <div class="card-body">
+          <div class="send-section">
+            <label>Número (com DDD)</label>
+            <input type="text" id="inp-numero" placeholder="Ex: 98999887766">
+            <label>Mensagem</label>
+            <textarea id="inp-msg" rows="3" placeholder="Digite a mensagem..."></textarea>
+            <button class="btn-send" onclick="enviarManual()">Enviar Mensagem</button>
+            <div id="send-feedback"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        Log de Mensagens
+        <span id="log-count" style="font-size:11px;color:var(--text-muted);font-weight:400;text-transform:none;letter-spacing:0">0 registros</span>
+      </div>
+      <div class="card-body" style="padding:0 1.25rem;">
+        <div id="logs-list"><p style="color:var(--text-muted);font-size:13px;padding:1rem 0">Nenhuma mensagem ainda...</p></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  Fonseca & Macedo Advogados &nbsp;·&nbsp; Bot WhatsApp v1.0 &nbsp;·&nbsp; (98) 93300-5417
+</footer>
+
+<script>
+const socket = io();
+let allLogs = [];
+
+socket.on('status', (s) => {
+  const pill = document.getElementById('status-pill');
+  const txt = document.getElementById('status-txt');
+  pill.className = s;
+  const map = { online:'Online', aguardando_qr:'Aguarde o QR Code', desconectado:'Desconectado', aguardando:'Iniciando...' };
+  txt.textContent = map[s] || s;
+});
+
+socket.on('qr', (qrData) => {
+  const box = document.getElementById('qr-box');
+  if (qrData) {
+    box.innerHTML = `<img src="${qrData}" alt="QR Code"><p>Abra o WhatsApp → Dispositivos conectados → Conectar dispositivo e escaneie este código.</p>`;
+  } else {
+    box.innerHTML = `<span class="online-icon">✅</span><p class="status-online-msg">Bot conectado com sucesso!</p><p class="status-online-sub">Atendendo no número<br><strong>(98) 93300-5417</strong></p>`;
+  }
+});
+
+socket.on('stats', (s) => {
+  document.getElementById('s-recebidas').textContent = s.total || 0;
+  document.getElementById('s-enviadas').textContent = s.enviadas || 0;
+  document.getElementById('s-sessoes').textContent = s.sessoes || 0;
+  const min = Math.floor((s.uptime || 0) / 60);
+  document.getElementById('s-uptime').textContent = min < 60 ? min+'min' : Math.floor(min/60)+'h'+String(min%60).padStart(2,'0')+'m';
+});
+
+socket.on('logs', (logs) => { allLogs = logs; renderLogs(); });
+socket.on('novo_log', (log) => { allLogs.unshift(log); if(allLogs.length>200)allLogs.pop(); renderLogs(); });
+
+function renderLogs() {
+  document.getElementById('log-count').textContent = allLogs.length + ' registros';
+  if (!allLogs.length) { document.getElementById('logs-list').innerHTML = '<p style="color:var(--text-muted);font-size:13px;padding:1rem 0">Nenhuma mensagem ainda...</p>'; return; }
+  document.getElementById('logs-list').innerHTML = allLogs.slice(0,80).map(l => `
+    <div class="log-item">
+      <span class="log-hora">${l.hora}</span>
+      <span class="log-badge badge-${l.tipo}">${l.tipo}</span>
+      <div>
+        <div class="log-numero">${l.numero}</div>
+        <div class="log-msg">${escapeHtml(l.msg)}</div>
+      </div>
+    </div>`).join('');
+}
+
+function escapeHtml(t) { return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+async function enviarManual() {
+  const numero = document.getElementById('inp-numero').value.trim();
+  const mensagem = document.getElementById('inp-msg').value.trim();
+  const fb = document.getElementById('send-feedback');
+  if (!numero || !mensagem) { fb.className='err'; fb.textContent='Preencha número e mensagem.'; return; }
+  const btn = document.querySelector('.btn-send');
+  btn.disabled = true; btn.textContent = 'Enviando...';
+  fb.textContent = '';
+  try {
+    const r = await fetch('/api/enviar', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({numero, mensagem}) });
+    const d = await r.json();
+    if (d.ok) { fb.className='ok'; fb.textContent='✓ Mensagem enviada!'; document.getElementById('inp-msg').value=''; }
+    else { fb.className='err'; fb.textContent='Erro: '+(d.erro||'desconhecido'); }
+  } catch(e) { fb.className='err'; fb.textContent='Falha na conexão.'; }
+  btn.disabled = false; btn.textContent = 'Enviar Mensagem';
+}
+</script>
+</body>
+</html>
